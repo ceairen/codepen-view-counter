@@ -56,7 +56,10 @@
             elt: '.item-in-list-view',
             parent: null,
             recursive: false,
-            done: () => refresh_counter_views()
+            done: () => {
+                dom_update_counter_views(0, true);
+                refresh_counter_views();
+            }
         });
     }
     const refresh_counter_views = () => {
@@ -92,9 +95,9 @@
         }, 0)
         callback(stat_values);
     }
-    const dom_update_counter_views = (nbViews) => {
+    const dom_update_counter_views = (nbViews, flush = false) => {
         let views_value = parseInt(document.getElementById(ID_NUMBER_VIEWS).innerText);
-        document.getElementById(ID_NUMBER_VIEWS).innerText = views_value + nbViews;
+        document.getElementById(ID_NUMBER_VIEWS).innerText = flush ? nbViews : views_value + nbViews;
     }
     const getCurrentUserPage = () => {
         return document.querySelector('#profile-username').innerText ?? null;
