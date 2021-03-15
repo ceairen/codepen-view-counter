@@ -29,6 +29,10 @@
         const counter_views_a = document.createElement('a');
         const counter_views_strong = document.createElement('strong');
         const counter_views_span = document.createElement('span');
+        const counter_refresh_views_button = document.createElement('button');
+        counter_refresh_views_button.innerText = "refresh";
+        counter_refresh_views_button.style.cssText = "outline: none; cursor: pointer; padding: 2px 5px; border: none; border-radius: 3px; color: white; background-color: #868ca0; margin-right: 10px;";
+        counter_refresh_views_button.addEventListener('click', launch_scan_windows);
         counter_views_a.classList.add('follow-block');
         counter_views_span.innerText = "Views";
         counter_views_strong.innerText = nbViews;
@@ -37,6 +41,7 @@
         counter_views_a.appendChild(counter_views_strong);
         counter_views_a.appendChild(counter_views_span);
         counter_views.appendChild(counter_views_a);
+        counter_views.appendChild(counter_refresh_views_button);
         return counter_views;
     }
     const init_counter_views = () => {
@@ -48,10 +53,24 @@
                 local_number_value = local_number_json.views;
             }
         }
-        document.querySelector('.profile-header-right').appendChild(profile_counter_views(local_number_value));
+        document.querySelector('.profile-header-right').prepend(profile_counter_views(local_number_value));
         if(window.location.search && window.location.search.includes('cursor')){
             return;
         }
+        if(window.location.href.toString().indexOf('#scanviews') !== -1) {
+            launch_scan_script();
+        }
+    }
+    const launch_scan_windows = () => {
+        const user = getCurrentUserPage() !== null ? getCurrentUserPage().toString().replace('@', '') : null;
+        if(user === null) { return; }
+        let url = `http://www.codepen.io/${user}/pens/popular#scanviews`;
+        let win = window.open(url, "MyDialog", 10, 10, "menubar=0,toolbar=0");
+        win.onbeforeunload = () => {
+            window.location.reload();
+        }
+    }
+    const launch_scan_script = () => {
         wait_for_profile_apparition({
             elt: '.item-in-list-view',
             parent: null,
@@ -82,6 +101,7 @@
                        views: parseInt(document.getElementById(ID_NUMBER_VIEWS).innerText)
                    });
                    localStorage.setItem(KEY_NUMBER_VIEWS, informations);
+                   window.close();
                 }
             })
         });
