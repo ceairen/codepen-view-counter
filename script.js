@@ -1,27 +1,24 @@
-// ==UserScript==
-// @name         Codepen View Counter V2
-// @namespace    http://tampermonkey.net/
-// @version      2.0
-// @description  try to take over the world!
-// @author       You
-// @match        https://codepen.io/*
-// @icon         data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==
-// @grant        none
-// ==/UserScript==
-
 (function() {
     'use strict';
 
     const ID_CPC_VIEW = "cpc_view";
     const ID_CPC_VIEW_STATS = "cpc_view_stats";
+    const ID_CPC_VIEW_FULL_STATS = "cpc_view_full_stats";
+    const ID_CPC_BOARD_CONTENT = "cpc_board_content";
     const CLASS_PROFILE_HEADER = "profile-header-right";
+    const BUTTON_STATS = "btn_stats";
+    const BUTTON_STATS_FULL = "btn_stats_full";
 
     const KEY_NUMBER_VIEWS = "CVC_KEY_NUMBER_VIEWS";
+    const SAVED_STATS = "CVC_SAVED_STATS";
     const TEMP_KEY_NUMBER_VIEWS = "CVC_TEMP_KEY_NUMBER_VIEWS";
 
     const $ = (selector) => document.querySelector(selector);
     const $$ = (selector) => document.querySelectorAll(selector);
-    const $$$ = (selector) => Array.prototype.slice.call(selector);
+    const $$$ = (selector) => Array.from(selector);
+
+    let statsHidden = false;
+    let statsHiddenFull = true;
 
     Date.prototype.frenchFormat = function() {
         var mm = this.getMonth() + 1;
@@ -112,6 +109,48 @@
         document.body.appendChild(loading_view);
     }
 
+    const createViewCounterSubviewDom = (subview_name, subview_title) => {
+        const cssSyleForChilds = `
+            padding: 5px 8px;
+            min-width: 150px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        `;
+        const cssSyleForSpanChilds = `
+            color: #868ca0;
+            margin-right: 20px;
+            font-size: 13px;
+        `;
+        const counter_view_stats_subview = document.createElement('div');
+        counter_view_stats_subview.setAttribute('id', `${ID_CPC_VIEW_STATS}_${subview_name}`);
+        counter_view_stats_subview.style.cssText = cssSyleForChilds;
+        const counter_view_stats_subview_span = document.createElement('span');
+        const counter_view_stats_subview_label = document.createElement('label');
+        counter_view_stats_subview_span.innerText = subview_title;
+        counter_view_stats_subview_span.style.cssText = cssSyleForSpanChilds;
+        counter_view_stats_subview.appendChild(counter_view_stats_subview_span);
+        counter_view_stats_subview.appendChild(counter_view_stats_subview_label);
+        return counter_view_stats_subview;
+    }
+
+    const createBoardDom = () => {
+        const board = document.createElement('div');
+        const boardTitle = document.createElement('h2');
+        boardTitle.innerText = 'Statistiques Globales';
+        boardTitle.style.cssText = 'text-align: center; margin: 10px;';
+        const boardContent = document.createElement('div');
+        boardContent.innerText = 'Rien pour le moment.';
+        boardContent.setAttribute('id', ID_CPC_BOARD_CONTENT);
+        boardContent.style.cssText = `
+             height: calc(100vh - 46px);
+             overflow: auto;
+        `;
+        board.appendChild(boardTitle);
+        board.appendChild(boardContent);
+        return board;
+    }
+
     // CREER LA VUE STATISTIQUE
     const createViewCounterDom = () => {
         const cssStyleForViews = `
@@ -131,109 +170,121 @@
         counter_refresh_views_button.addEventListener('click', launchWindowScan, false);
         counter_views.appendChild(counter_refresh_views_button);
         const counter_see_infos_button = document.createElement('button');
-        counter_see_infos_button.innerText = "Hide stats";
+        counter_see_infos_button.setAttribute('id', BUTTON_STATS);
+        counter_see_infos_button.innerText = "Toggle stats";
         counter_see_infos_button.style.cssText = `${cssStyleForViews} background-color: #2c303a;`;
-        let statsHidden = false;
+        const counter_full_infos_button = document.createElement('button');
+        counter_full_infos_button.setAttribute('id', BUTTON_STATS_FULL);
+        counter_full_infos_button.innerText = "Toggle board";
+        counter_full_infos_button.style.cssText = `${cssStyleForViews} background-color: #2c303a;`;
         counter_see_infos_button.addEventListener('click', () => {
-            const statsBlock = $(`#${ID_CPC_VIEW_STATS}`);
-            statsBlock.style.display = !statsHidden ? 'none' : 'block';
-            statsHidden = !statsHidden;
-            counter_see_infos_button.innerText = !statsHidden ? "Hide stats" : "Show stats"
+            toggleStatView()
         }, false);
-        const counter_view_stats = document.createElement('div');
-        counter_view_stats.setAttribute('id', ID_CPC_VIEW_STATS);
-        counter_view_stats.style.cssText = `
-            position: absolute;
+        counter_full_infos_button.addEventListener('click', () => {
+            toggleStatView(true)
+        }, false);
+        const commonViewCss = `
             background-color: #2c303a;
-            text-align: left;
-            top: 50px;
             border-radius: 3px;
             -webkit-box-shadow: 5px 5px 15px 0px #000000;
             box-shadow: 5px 5px 15px 0px #000000;
+            text-align: left;
+        `;
+        const counter_full_stats = document.createElement('div');
+        counter_full_stats.setAttribute('id', ID_CPC_VIEW_FULL_STATS);
+        counter_full_stats.style.cssText = commonViewCss + `
+            position: fixed;
+            top: 0px;
+            right: 0px;
+            bottom: 0px;
+            min-width: 300px;
+            border-radius: 3px;
+            z-index: 99999;
+        `;
+        counter_full_stats.style.display = 'none';
+        counter_full_stats.appendChild(createBoardDom());
+        const counter_view_stats = document.createElement('div');
+        counter_view_stats.setAttribute('id', ID_CPC_VIEW_STATS);
+        counter_view_stats.style.cssText = commonViewCss + `
+            position: absolute;
+            top: 50px;
+            border-radius: 3px;
             z-index: 9999;
         `;
 
-        const cssSyleForChilds = `
-            padding: 5px 8px;
-            min-width: 150px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        `;
-
-        const cssSyleForSpanChilds = `
-            color: #868ca0;
-            margin-right: 20px;
-            font-size: 13px;
-        `;
-
         // title part
-        const counter_view_stats_title = document.createElement('div');
-        const counter_view_stats_title_title = document.createElement('label');
-        counter_view_stats_title_title.innerText = "Statistiques";
-        counter_view_stats_title.appendChild(counter_view_stats_title_title);
-        counter_view_stats_title.style.cssText = cssSyleForChilds;
-        counter_view_stats.appendChild(counter_view_stats_title);
+        counter_view_stats.appendChild(createViewCounterSubviewDom('totalpens', 'Total pens'));
 
         // view part
-        const counter_view_stats_views = document.createElement('div');
-        counter_view_stats_views.setAttribute('id', `${ID_CPC_VIEW_STATS}_views`);
-        counter_view_stats_views.style.cssText = cssSyleForChilds;
-        const counter_view_stats_views_span = document.createElement('span');
-        const counter_view_stats_views_label = document.createElement('label');
-        counter_view_stats_views_span.innerText = 'Views';
-        counter_view_stats_views_span.style.cssText = cssSyleForSpanChilds;
-        counter_view_stats_views.appendChild(counter_view_stats_views_span);
-        counter_view_stats_views.appendChild(counter_view_stats_views_label);
-        counter_view_stats.appendChild(counter_view_stats_views);
+        counter_view_stats.appendChild(createViewCounterSubviewDom('views', 'Views'));
 
         //love part
-        const counter_view_stats_love = document.createElement('div');
-        counter_view_stats_love.setAttribute('id', `${ID_CPC_VIEW_STATS}_loves`);
-        counter_view_stats_love.style.cssText = cssSyleForChilds;
-        const counter_view_stats_love_span = document.createElement('span');
-        const counter_view_stats_love_label = document.createElement('label');
-        counter_view_stats_love_span.innerText = 'Loves';
-        counter_view_stats_love_span.style.cssText = cssSyleForSpanChilds;
-        counter_view_stats_love.appendChild(counter_view_stats_love_span);
-        counter_view_stats_love.appendChild(counter_view_stats_love_label);
-        counter_view_stats.appendChild(counter_view_stats_love);
-
+        counter_view_stats.appendChild(createViewCounterSubviewDom('loves', 'Loves'));
 
         //comment part
-        const counter_view_stats_comment = document.createElement('div');
-        counter_view_stats_comment.setAttribute('id', `${ID_CPC_VIEW_STATS}_comments`);
-        counter_view_stats_comment.style.cssText = cssSyleForChilds;
-        const counter_view_stats_comment_span = document.createElement('span');
-        const counter_view_stats_comment_label = document.createElement('label');
-        counter_view_stats_comment_span.innerText = 'Comments';
-        counter_view_stats_comment_span.style.cssText = cssSyleForSpanChilds;
-        counter_view_stats_comment.appendChild(counter_view_stats_comment_span);
-        counter_view_stats_comment.appendChild(counter_view_stats_comment_label);
-        counter_view_stats.appendChild(counter_view_stats_comment);
+        counter_view_stats.appendChild(createViewCounterSubviewDom('comments', 'Comments'));
 
         //refresh part
-        const counter_view_stats_refresh = document.createElement('div');
-        counter_view_stats_refresh.setAttribute('id', `${ID_CPC_VIEW_STATS}_refresh`);
-        counter_view_stats_refresh.style.cssText = cssSyleForChilds;
-        const counter_view_stats_refresh_span = document.createElement('span');
-        const counter_view_stats_refresh_label = document.createElement('label');
-        counter_view_stats_refresh_span.innerText = 'Last refresh';
-        counter_view_stats_refresh_span.style.cssText = cssSyleForSpanChilds;
-        counter_view_stats_refresh.appendChild(counter_view_stats_refresh_span);
-        counter_view_stats_refresh.appendChild(counter_view_stats_refresh_label);
-        counter_view_stats.appendChild(counter_view_stats_refresh);
+        counter_view_stats.appendChild(createViewCounterSubviewDom('refresh', 'Last refresh'));
 
+        counter_views.appendChild(counter_full_stats);
         counter_views.appendChild(counter_view_stats);
         counter_views.appendChild(counter_see_infos_button);
+        counter_views.appendChild(counter_full_infos_button);
         counter_views.appendChild(counter_refresh_views_button);
         return counter_views;
+    }
+
+    const toggleStatView = (full = false) => {
+        const statsBlock = $(`#${ID_CPC_VIEW_STATS}`);
+        const statsBlockFull = $(`#${ID_CPC_VIEW_FULL_STATS}`);
+        const buttonStats = $(`#${BUTTON_STATS}`);
+        const buttonStatsFull = $(`#${BUTTON_STATS_FULL}`);
+        if(statsBlock === null || buttonStats === null || buttonStatsFull === null) return;
+        if(full) {
+            statsBlockFull.style.display = !statsHiddenFull ? 'none' : 'block';
+            statsBlock.style.display = 'none';
+            statsHidden = true;
+            statsHiddenFull = !statsHiddenFull;
+        }else{
+            statsBlock.style.display = !statsHidden ? 'none' : 'block';
+            statsHidden = !statsHidden;
+            statsHiddenFull = true;
+            statsBlockFull.style.display = 'none';
+        }
+    }
+
+    const createListPenDom = (data) => {
+        const pen = document.createElement('div');
+        pen.style.cssText = `
+             margin: 2px 0;
+             padding: 10px;
+             border-bottom: 1px solid #3e3d3d;
+        `;
+        const penTitle = document.createElement('label');
+        penTitle.innerText = data.title;
+        const penStats = document.createElement('label');
+        penStats.style.cssText = 'font-size: 12px; color: grey;';
+        penStats.innerText = `
+             Views: ${data.views}
+             Loves: ${data.loves}
+             Comments: ${data.comments}
+        `;
+        pen.appendChild(penTitle);
+        pen.appendChild(penStats);
+        return pen;
+    }
+
+    const updateCounterViewFull = (pen) => {
+        const boardContent = $(`#${ID_CPC_BOARD_CONTENT}`);
+        boardContent.appendChild(createListPenDom(pen));
     }
 
     // UPDATE LA VUE STATISTIQUE
     const updateCounterView = () => {
         let savedInformations = localStorage.getItem(KEY_NUMBER_VIEWS);
         let informations = {
+            totalPens: '-',
             views: '-',
             loves: '-',
             comments: '-',
@@ -248,6 +299,7 @@
                 }
             });
             if(userInformations !== null) {
+                $(`#${ID_CPC_BOARD_CONTENT}`).innerText = '';
                 let p_views = 0;
                 let p_loves = 0;
                 let p_comms = 0;
@@ -255,8 +307,10 @@
                     p_views += data.views;
                     p_loves += data.loves;
                     p_comms += data.comments;
+                    updateCounterViewFull(data);
                 });
                 informations = {
+                    totalPens: userInformations.datas.length,
                     views: addNumberSeparator(p_views),
                     loves: addNumberSeparator(p_loves),
                     comments: addNumberSeparator(p_comms),
@@ -265,6 +319,7 @@
             }
         }
 
+        $(`#${ID_CPC_VIEW_STATS}_totalpens`).querySelector('label').innerText = informations.totalPens;
         $(`#${ID_CPC_VIEW_STATS}_views`).querySelector('label').innerText = informations.views;
         $(`#${ID_CPC_VIEW_STATS}_loves`).querySelector('label').innerText = informations.loves;
         $(`#${ID_CPC_VIEW_STATS}_comments`).querySelector('label').innerText = informations.comments;
@@ -277,9 +332,7 @@
             elt: '.item-in-list-view',
             parent: null,
             recursive: false,
-            done: () => {
-                launchScanPage();
-            }
+            done: () => launchScanPage()
         });
     }
 
